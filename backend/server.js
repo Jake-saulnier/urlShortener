@@ -18,19 +18,19 @@ app.post("/api/urls", (req, res) => {
     const originalUrl = req.body && req.body.url;
 
     if (!originalUrl) {
-        return res.status(400).json({ error: "Missing 'url' in request body" });
         console.log("Missing 'url' in request body");
+        return res.status(400).json({ error: "Missing 'url' in request body" });
     }
 
     try {
         const parsed = new URL(originalUrl);
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-            return res.status(400).json({ error: 'URL must use http or https protocol' });
             console.log('URL must use http or https protocol');
+            return res.status(400).json({ error: 'URL must use http or https protocol' });
         }
     } catch (err) {
-        return res.status(400).json({ error: 'Invalid URL' });
         console.log('Invalid URL');
+        return res.status(400).json({ error: 'Invalid URL' });
     }
 
     const shortCode = Math.random()
