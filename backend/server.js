@@ -2,7 +2,24 @@ const express = require('express');
 const app = express();
 app.use(express.json());
 const PORT = 3000;
-const urls = new Map();
+
+const {Pool} = require('pg');
+const pool = new Pool({
+    user: 'postgres',
+    host: 'localhost',
+    database: 'url_shortener',
+    password: process.env.DB_PASSWORD,
+    port: 5432,
+});
+
+
+pool.query('SELECT NOW()', (error, result) => {
+    if (error) {
+        console.error('Database connection failed:', error);
+    } else {
+        console.log('Database connected:', result.rows[0]);
+    }
+});
 
 app.get("/api/health", (req, res) => {
     res.json({ 
@@ -16,10 +33,15 @@ app.listen(PORT, () => {
 
 app.post("/api/urls", (req, res) => {
     const originalUrl = req.body && req.body.url;
+    const name = req.body && req.body.name;
 
     if (!originalUrl) {
         console.log("Missing 'url' in request body");
         return res.status(400).json({ error: "Missing 'url' in request body" });
+    }
+    if (!name) {
+        console.log("Missing 'name' in request body");
+        return res.status(400).json({ error: "Missing 'name' in request body" });
     }
 
     try {
@@ -37,26 +59,46 @@ app.post("/api/urls", (req, res) => {
         .toString(36)
         .substring(2, 8);
 
+ /* no longer useful since we are using a database to store the short codes  
     while (urls.has(shortCode)) {
         shortCode = Math.random()
             .toString(36)
             .substring(2, 8);  
     }
+*/
 
-    urls.set(shortCode, originalUrl);
+    const query = 'INSERT INTO urls (short_code, url, name) VALUES ($1, $2, $3)';
+    const values = [shortCode, originalUrl, name];
+
+    pool.query(query, values, (err, result) => {
+        if (err) {
+            console.error('Error inserting URL:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    });
 
     res.json({
         shortCode: shortCode,
-    });
+        name: name
+    })
 });
 
 app.get("/:shortCode", (req, res) => {
     const shortCode = req.params.shortCode;
-    const originalUrl = urls.get(shortCode);
 
-    if (!originalUrl) {
-        return res.status(404).send({ error: "URL not found" });
-    }
+    const query = 'SELECT url FROM urls WHERE short_code = $1';
+    const values = [shortCode];
 
-    res.redirect(originalUrl);
+    pool.query(query, values, (err, result) => {
+        if (err) {
+            console.error('Error inserting URL:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+        const originalUrl = result.rows[0]?.url;
+
+        if (!originalUrl) {
+            return res.status(404).send({ error: "URL not found" });
+        }
+        res.redirect(originalUrl);
+    });    
 });
